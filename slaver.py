@@ -14,9 +14,10 @@ class Slaver:
         连接master->等待->心跳(重复)--->握手-->正式传输数据->退出
     """
 
-    def __init__(self, communicate_addr, target_addr, max_spare_count=5):
+    def __init__(self, communicate_addr, local_addr,remote_addr, max_spare_count=5):
         self.communicate_addr = communicate_addr
-        self.target_addr = target_addr
+        self.local_addr = local_addr
+        self.remote_addr=remote_addr
         self.max_spare_count = max_spare_count
 
         self.spare_slaver_pool = {}
@@ -35,7 +36,7 @@ class Slaver:
 
     def _connect_target(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(self.target_addr)
+        sock.connect(self.local_addr)
 
         log.debug("connected to target[{}] at: {}".format(
             sock.getpeername(),
@@ -242,12 +243,12 @@ class Slaver:
             err_delay = 0
 
 
-def run_slaver(communicate_addr, target_addr, max_spare_count=5):
+def run_slaver(communicate_addr, local_addr,remote_addr, max_spare_count=5):
     log.info("running as slaver, master addr: {} target: {}".format(
-        fmt_addr(communicate_addr), fmt_addr(target_addr)
+        fmt_addr(communicate_addr), fmt_addr(local_addr)
     ))
 
-    Slaver(communicate_addr, target_addr, max_spare_count=max_spare_count).serve_forever()
+    Slaver(communicate_addr, local_addr,remote_addr, max_spare_count=max_spare_count).serve_forever()
 
 
 def argparse_slaver():
@@ -278,9 +279,12 @@ Tips: ANY service using TCP is shootback-able.  HTTP/FTP/Proxy/SSH/VNC/...
     parser.add_argument("-m", "--master", required=True,
                         metavar="host:port",
                         help="master address, usually an Public-IP. eg: 2.3.3.3:5500")
-    parser.add_argument("-t", "--target", required=True,
+    parser.add_argument("-l", "--local", required=True,
                         metavar="host:port",
                         help="where the traffic from master should be tunneled to, usually not public. eg: 10.1.2.3:80")
+    parser.add_argument("-r", "--remote", required=True,
+                        metavar="host:port",
+                        help="the address you wanna place on the public network")
     parser.add_argument("-k", "--secretkey", default="shootback",
                         help="secretkey to identity master and slaver, should be set to the same value in both side")
     parser.add_argument("-v", "--verbose", action="count", default=0,
@@ -310,7 +314,8 @@ def main_slaver():
         exit(1)
 
     communicate_addr = split_host(args.master)
-    target_addr = split_host(args.target)
+    local_addr = split_host(args.local)
+    remote_addr=split_host(args.remote)
 
     SECRET_KEY = args.secretkey
     CtrlPkg.recalc_crc32()
@@ -329,12 +334,13 @@ def main_slaver():
     log.info("shootback {} slaver running".format(version_info()))
     log.info("author: {}  site: {}".format(__author__, __website__))
     log.info("Master: {}".format(fmt_addr(communicate_addr)))
-    log.info("Target: {}".format(fmt_addr(target_addr)))
+    log.info("Local: {}".format(fmt_addr(local_addr)))
+    log.info("Remote: {}".format(fmt_addr(remote_addr)))
 
     # communicate_addr = ("localhost", 12345)
-    # target_addr = ("93.184.216.34", 80)  # www.example.com
+    # local_addr = ("93.184.216.34", 80)  # www.example.com
 
-    run_slaver(communicate_addr, target_addr, max_spare_count=max_spare_count)
+    run_slaver(communicate_addr, local_addr,remote_addr, max_spare_count=max_spare_count)
 
 
 if __name__ == '__main__':
